@@ -1,0 +1,8 @@
+services:
+  opencv:
+    build:
+      context: .
+    volumes:
+      - ./app:/app
+    ports:
+      - 8000:5000
