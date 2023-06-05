@@ -3,6 +3,6 @@ services:
     build:
       context: .
     volumes:
-      - ./app:/app
+      - ./:/app
     ports:
       - 8000:5000

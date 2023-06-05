@@ -8,4 +8,4 @@ RUN pip3 install flask flask_socketio gevent gevent-websocket numpy
 
 WORKDIR /app
 
-ENTRYPOINT [ "nodemon", "--exec", "python3", "opencv.py" ]
+ENTRYPOINT [ "nodemon", "--exec", "python3", "server.py" ]

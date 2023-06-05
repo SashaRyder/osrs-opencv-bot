@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using RSOpenCVClient;
 using SocketIOClient;
 using System.Diagnostics;
@@ -18,17 +18,44 @@ if (runeLiteProcess == null)
 }
 
 Console.WriteLine("RuneLite process ID: {0}", runeLiteProcess.Id);
-
 var client = new SocketIO("http://localhost:8000/osrs", new SocketIOOptions(){ReconnectionAttempts = 100, ReconnectionDelay = 10});
 
-client.On("response", response =>
-{
+var botIdTask = new TaskCompletionSource<string>();
+var botId = "";
 
+var botTaskAcceptedTask = new TaskCompletionSource<bool>();
+
+client.On("registration", response =>
+{
+    botIdTask.SetResult(response.GetValue<string>());
 });
+
+client.On("1", response => {
+    botTaskAcceptedTask.SetResult(response.GetValue<bool>());
+});
+
+async Task BotSetup() {
+    botId = await botIdTask.Task;
+    Console.WriteLine("Bot ID {0} Registered.", botId);
+    Console.WriteLine("Select a task:");
+    Console.WriteLine("[1] Motherlode Mine");
+    string? result = Console.ReadLine();
+    if(String.IsNullOrWhiteSpace(result) || result != "1") {
+        Console.WriteLine("No valid option selected. Exiting...");
+        System.Environment.Exit(0);
+    }
+    Console.WriteLine("{0} selected, starting bot connection with server.", result);
+    await client.EmitAsync("task", "Motherlode Mine");
+    var canStart = await botTaskAcceptedTask.Task;
+    if(!canStart) {
+        throw new Exception("Server rejected access.");
+    }
+}
 
 client.OnConnected += async (sender, e) =>
 {
-    Console.WriteLine("We're connected, start streaming ASAP!");
+    Console.WriteLine("Connected to server.");
+    await BotSetup();
     while (client.Connected)
     {
         GetWindowRect(runeLiteProcess.MainWindowHandle, out var lpRect);
