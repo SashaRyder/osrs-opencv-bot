@@ -19,7 +19,7 @@ if (runeLiteProcess == null)
 
 Console.WriteLine("RuneLite process ID: {0}", runeLiteProcess.Id);
 
-var client = new SocketIO("http://localhost:8000/osrs");
+var client = new SocketIO("http://localhost:8000/osrs", new SocketIOOptions(){ReconnectionAttempts = 100, ReconnectionDelay = 10});
 
 client.On("response", response =>
 {
@@ -45,7 +45,11 @@ client.OnConnected += async (sender, e) =>
                 bitmap.Save(ms, ImageFormat.Jpeg);
                 byte[] byteImage = ms.ToArray();
                 Console.WriteLine("image size: {0}kb", byteImage.Length / 1000);
-                await client.EmitAsync("message", byteImage);
+                try {
+                    await client.EmitAsync("message", byteImage);
+                }
+                catch(Exception) {
+                }
             }
             await Task.Delay(50);
 

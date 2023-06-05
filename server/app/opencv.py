@@ -1,3 +1,4 @@
+import glob
 from gevent import monkey
 import gevent
 monkey.patch_all()
@@ -17,6 +18,11 @@ import functools
 print = functools.partial(print, flush=True)
 
 is_mining_template = cv_template("./cv_templates/mining/is_mining.png")
+invent_full_template = cv_template("./cv_templates/mining/invent_full.png")
+pickaxe_templates = []
+for image in glob.glob("./cv_templates/mining/pickaxes/*"):
+    pickaxe_templates.append(cv_template(image))
+
 
 app = Flask(__name__)
 socketio = SocketIO(app, async_mode="gevent", max_http_buffer_size=5000000)
@@ -56,8 +62,22 @@ def gen():
         imgbuff = np.frombuffer(last_buffer, dtype=np.uint8)
         openCvImage = cv2.imdecode(imgbuff, cv2.IMREAD_COLOR)
         mining_matches = template_matches(is_mining_template.getTemplate(), openCvImage)
+        invent_full_matches = template_matches(invent_full_template.getTemplate(), openCvImage)
+        if(len(list(invent_full_matches)) > 0):
+            openCvImage = cv2.putText(openCvImage, "INVENTORY FULL", org=(50, 50), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=1, color=(255, 0, 0),thickness=1)
+        mining_locations = []
+        for template in pickaxe_templates:
+            pickaxe_matches = template_matches(template.getTemplate(), openCvImage, 0.8)
+            mining_locations += pickaxe_matches
+            for locs in mining_locations:
+                cv2.rectangle(openCvImage, locs, (locs[0] + template.getWidth(), locs[1] + template.getHeight()), (0,0,0), 2)
         for match in mining_matches:
-            cv2.rectangle(openCvImage, match, (match[0] + is_mining_template.getHeight(), match[1] + is_mining_template.getWidth()), (0,0,255), 2)
+            cv2.rectangle(openCvImage, match, (match[0] + is_mining_template.getWidth(), match[1] + is_mining_template.getHeight()), (0,0,0), 2)
+        h, w = openCvImage.shape[:-1]
+        center = np.array([(w - 20) / 2, h / 2])
+        if len(mining_locations) > 0:
+            nearest_kp = min(mining_locations, key=lambda kp: np.linalg.norm(kp - center))
+            cv2.rectangle(openCvImage, nearest_kp, (nearest_kp[0] + template.getWidth(), nearest_kp[1] + template.getHeight()), (0,0,255), 2)
         openCvImage = cv2.putText(openCvImage, str(round((total_images / total_run_time_seconds()))) + "fps", org=(50, 50), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=1, color=(0, 0, 0),thickness=1)
         _, buffer = cv2.imencode('.jpg', openCvImage)
         baseimage = base64.b64encode(buffer)
