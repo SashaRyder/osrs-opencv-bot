@@ -1,9 +1,9 @@
 import glob
-from gevent import monkey
-import gevent
-monkey.patch_all()
 
-from threading import Thread
+import gevent
+import gevent.monkey
+gevent.monkey.patch_all(sys=True)
+
 import time
 import cv2
 import os
@@ -17,22 +17,18 @@ from cv_template import cv_template
 import functools
 print = functools.partial(print, flush=True)
 
-is_mining_template = cv_template("./cv_templates/mining/is_mining.png")
-invent_full_template = cv_template("./cv_templates/mining/invent_full.png")
+is_mining_template = cv_template("./functions/motherlode_mine/is_mining.png")
+invent_full_template = cv_template("./functions/motherlode_mine/invent_full.png")
 pickaxe_templates = []
-for image in glob.glob("./cv_templates/mining/pickaxes/*"):
+for image in glob.glob("./functions/motherlode_mine/pickaxes/*"):
     pickaxe_templates.append(cv_template(image))
 
 
-app = Flask(__name__)
-socketio = SocketIO(app, async_mode="gevent", max_http_buffer_size=5000000)
+app = Flask(__name__, template_folder='./flask_html_templates')
+socketio = SocketIO(app, max_http_buffer_size=5000000)
 
-last_buffer = []
+last_buffer: bytes
 
-total_images = 0
-run_start = time.time()
-
-host_server = os.environ.get("RTSP_HOST")
 print("Running OpenCV OSRS Bot")
 print("OPENCV VERSION: " + cv2.__version__)
 
@@ -41,17 +37,13 @@ def handle_connect():
     print("HI CONNECTED")
 
 @socketio.on('message', namespace="/osrs")
-def handle_message(data):
-    global last_buffer, total_images
-    total_images += 1
+def handle_message(data: bytes):
+    global last_buffer
     last_buffer = data
 
 @socketio.on('disconnect', namespace="/osrs")
 def handle_disconnect():
      print("BYE DISCONNECT")
-
-def total_run_time_seconds() -> float:
-    return time.time() - run_start
 
 
 
@@ -74,11 +66,9 @@ def gen():
         for match in mining_matches:
             cv2.rectangle(openCvImage, match, (match[0] + is_mining_template.getWidth(), match[1] + is_mining_template.getHeight()), (0,0,0), 2)
         h, w = openCvImage.shape[:-1]
-        center = np.array([(w - 20) / 2, h / 2])
         if len(mining_locations) > 0:
-            nearest_kp = min(mining_locations, key=lambda kp: np.linalg.norm(kp - center))
+            nearest_kp = min(mining_locations, key=lambda kp: np.linalg.norm(kp - np.array([ w/ 2, h / 2])))
             cv2.rectangle(openCvImage, nearest_kp, (nearest_kp[0] + template.getWidth(), nearest_kp[1] + template.getHeight()), (0,0,255), 2)
-        openCvImage = cv2.putText(openCvImage, str(round((total_images / total_run_time_seconds()))) + "fps", org=(50, 50), fontFace=cv2.FONT_HERSHEY_TRIPLEX, fontScale=1, color=(0, 0, 0),thickness=1)
         _, buffer = cv2.imencode('.jpg', openCvImage)
         baseimage = base64.b64encode(buffer)
         yield (b'--frame\r\n'
@@ -99,4 +89,4 @@ def video_feed():
                 mimetype='multipart/x-mixed-replace; boundary=frame')
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', debug=True, log_output=True)
+    socketio.run(app, host='0.0.0.0', debug=True, log_output=True, use_reloader=False)
